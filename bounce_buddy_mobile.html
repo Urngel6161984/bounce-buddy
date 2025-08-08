@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Bounce Buddy Mobile</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    html, body { margin:0; padding:0; overflow:hidden; background:#c8e6ff; touch-action:none; }
+    canvas { display:block; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+// Dynamic resize
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    buddy.radius = Math.min(canvas.width, canvas.height) / 15;
+}
+window.addEventListener("resize", resizeCanvas);
+
+let buddy = { y: 0, velocity: 0, gravity: 0.5, bounce: -12, radius: 40 };
+let score = 0, bgColor = "#c8e6ff", particles = [];
+let star = { x: 0, y: 0, size: 20, active: true };
+
+// Sounds
+const popSound = new Audio("https://actions.google.com/sounds/v1/cartoon/slide_whistle_to_drum.ogg");
+const ouchSound = new Audio("https://actions.google.com/sounds/v1/cartoon/concussive_hit_guitar_boing.ogg");
+
+// Controls
+function jump() {
+    buddy.velocity = buddy.bounce;
+    popSound.currentTime = 0;
+    popSound.play();
+}
+document.addEventListener("mousedown", jump);
+document.addEventListener("touchstart", e => { jump(); e.preventDefault(); });
+
+// Helpers
+function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function resetGame() {
+    buddy.y = canvas.height / 2;
+    buddy.velocity = 0;
+    score = 0;
+    buddy.gravity = 0.5;
+    bgColor = "#c8e6ff";
+    particles = [];
+}
+function spawnParticles(x, y) {
+    for (let i = 0; i < 20; i++) {
+        particles.push({
+            x: x, y: y,
+            vx: (Math.random() - 0.5) * 6,
+            vy: (Math.random() - 0.5) * 6,
+            color: `${rand(200,255)},${rand(200,255)},0`,
+            life: 20
+        });
+    }
+}
+function placeStar() {
+    star = {
+        x: rand(buddy.radius, canvas.width - buddy.radius),
+        y: rand(buddy.radius, canvas.height - buddy.radius),
+        size: buddy.radius * 0.6,
+        active: true
+    };
+}
+
+// Main Loop
+function loop() {
+    buddy.velocity += buddy.gravity;
+    buddy.y += buddy.velocity;
+
+    // Bounds
+    if (buddy.y > canvas.height - buddy.radius || buddy.y < buddy.radius) {
+        ouchSound.play();
+        resetGame();
+    }
+
+    // Score & difficulty
+    score++;
+    if (score % 100 === 0) buddy.gravity += 0.05;
+    if (score % 500 === 0) bgColor = `rgb(${rand(150,255)},${rand(150,255)},${rand(150,255)})`;
+
+    // Star collision
+    if (star.active && Math.hypot(canvas.width/2 - star.x, buddy.y - star.y) < buddy.radius + star.size) {
+        score += 300;
+        star.active = false;
+        spawnParticles(star.x, star.y);
+        setTimeout(placeStar, 3000);
+    }
+
+    // Particle updates
+    particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
+    particles = particles.filter(p => p.life > 0);
+
+    // Draw background
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Buddy
+    ctx.fillStyle = "#ff6464";
+    ctx.beginPath();
+    ctx.arc(canvas.width/2, buddy.y, buddy.radius, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(canvas.width/2 - buddy.radius/3, buddy.y - buddy.radius/4, buddy.radius/5, 0, Math.PI*2);
+    ctx.arc(canvas.width/2 + buddy.radius/3, buddy.y - buddy.radius/4, buddy.radius/5, 0, Math.PI*2);
+    ctx.fill();
+
+    // Star
+    if (star.active) {
+        ctx.fillStyle = "yellow";
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) {
+            let angle = i * Math.PI * 2 / 5 - Math.PI / 2;
+            let x1 = star.x + Math.cos(angle) * star.size;
+            let y1 = star.y + Math.sin(angle) * star.size;
+            ctx.lineTo(x1, y1);
+            angle += Math.PI / 5;
+            x1 = star.x + Math.cos(angle) * (star.size / 2);
+            y1 = star.y + Math.sin(angle) * (star.size / 2);
+            ctx.lineTo(x1, y1);
+        }
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    // Particles
+    particles.forEach(p => {
+        ctx.fillStyle = `rgba(${p.color}, ${p.life/20})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
+        ctx.fill();
+    });
+
+    // Score
+    ctx.fillStyle = "#333";
+    ctx.font = `${buddy.radius}px Arial`;
+    ctx.fillText(Math.floor(score / 10), canvas.width / 2 - buddy.radius / 2, buddy.radius * 1.5);
+
+    requestAnimationFrame(loop);
+}
+
+// Init
+buddy.y = window.innerHeight / 2;
+resizeCanvas();
+placeStar();
+loop();
+</script>
+</body>
+</html>
